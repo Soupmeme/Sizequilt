@@ -1,0 +1,82 @@
+[workspace]
+resolver = "3"
+members = [".", "vendor/*"]
+exclude = ["vendor/LICENSE-TreeMap.txt"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+
+[workspace.dependencies]
+libc = "0.2"
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# The vendored engine crates inherit these; the app has its own, lighter set.
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[package]
+name = "sizequilt"
+description = "A fast native disk-space treemap for Windows."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+default-run = "sizequilt"
+
+[[bin]]
+name = "sizequilt"
+path = "src/main.rs"
+
+[[bin]]
+name = "sq-bench"
+path = "src/bin/sq-bench.rs"
+
+[lib]
+name = "sizequilt"
+path = "src/lib.rs"
+
+[dependencies]
+tm-governor = { path = "vendor/tm-governor" }
+tm-walk = { path = "vendor/tm-walk" }
+tm-mft = { path = "vendor/tm-mft" }
+tm-mft-helper = { path = "vendor/tm-mft-helper" }
+rayon = "1.12"
+eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow"] }
+rfd = "0.17"
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Com",
+    "Win32_System_IO",
+    "Win32_System_Ioctl",
+    "Win32_System_Registry",
+    "Win32_System_SystemInformation",
+    "Win32_System_Threading",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[build-dependencies]
+embed-manifest = "1"
+
+[patch.crates-io]
+windows-link = { path = "vendor/windows-link" }
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "unwind"
+strip = true

@@ -1,0 +1,14 @@
+﻿# windows-link 0.2.1 with one change, in src/lib.rs: functions are imported
+# through ordinary import libraries rather than raw-dylib. raw-dylib on the GNU
+# target calls dlltool, which needs an assembler the Rust toolchain does not
+# ship; the import libraries it does ship (and windows_x86_64_gnu's) need nothing.
+[package]
+name = "windows-link"
+version = "0.2.1"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[lib]
+name = "windows_link"
+path = "src/lib.rs"

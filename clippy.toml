@@ -1,0 +1,6 @@
+# This app has no reason to touch a network, in its own code or the vendored engine.
+disallowed-types = [
+    { path = "std::net::TcpStream", reason = "Sizequilt does not use the network" },
+    { path = "std::net::TcpListener", reason = "Sizequilt does not use the network" },
+    { path = "std::net::UdpSocket", reason = "Sizequilt does not use the network" },
+]
