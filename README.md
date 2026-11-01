@@ -12,8 +12,11 @@ surrounds them: Express, Electron and the browser UI.
 
 ## Getting it
 
-There's no signed download. [Build it from source](#building), which takes a few
-minutes and means you can read everything that goes into it.
+Download the latest build from
+[Releases](https://github.com/Soupmeme/Sizequilt/releases), or
+[build it from source](#building), which takes a few minutes and means you can
+read everything that goes into it. Each release lists the SHA-256 hash of its
+`.exe`.
 
 Builds aren't code-signed. Because a new unsigned program has no reputation,
 Windows SmartScreen may warn about it, and Microsoft Defender has flagged test
