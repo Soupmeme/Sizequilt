@@ -48,6 +48,8 @@ pub struct ScanFacts {
     pub dirs: u64,
     pub denied_entries: u64,
     pub refused_dirs: u64,
+    /// The most walker workers listing at once.
+    pub workers_peak: u32,
 }
 
 /// The scan. Node 0 is the root; `parent[i] < i` for every other node.
@@ -181,6 +183,7 @@ impl Tree {
                 dirs,
                 denied_entries: stats.denied_entries,
                 refused_dirs,
+                workers_peak: stats.workers_peak,
             },
             extensions: Vec::new(),
             categories: [CategoryStat::default(); CATEGORIES.len()],

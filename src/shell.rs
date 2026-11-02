@@ -13,8 +13,9 @@ use windows_sys::Win32::Security::{
     GetTokenInformation, TOKEN_ELEVATION, TOKEN_QUERY, TokenElevation,
 };
 use windows_sys::Win32::Storage::FileSystem::{
-    CreateFileW, FILE_SHARE_READ, FILE_SHARE_WRITE, GetDiskFreeSpaceExW, GetDriveTypeW,
-    GetLogicalDrives, GetVolumeInformationW, GetVolumeNameForVolumeMountPointW, OPEN_EXISTING,
+    BusTypeNvme, BusTypeSata, CreateFileW, FILE_SHARE_READ, FILE_SHARE_WRITE, GetDiskFreeSpaceExW,
+    GetDriveTypeW, GetLogicalDrives, GetVolumeInformationW, GetVolumeNameForVolumeMountPointW,
+    GetVolumePathNameW, IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS, OPEN_EXISTING, STORAGE_BUS_TYPE,
 };
 use windows_sys::Win32::System::Com::{
     COINIT_APARTMENTTHREADED, CoInitializeEx, CoTaskMemFree,
@@ -23,8 +24,10 @@ use windows_sys::Win32::System::IO::DeviceIoControl;
 use windows_sys::Win32::System::Registry::{HKEY_CURRENT_USER, RRF_RT_REG_DWORD, RegGetValueW};
 use windows_sys::Win32::System::SystemInformation::GetSystemWindowsDirectoryW;
 use windows_sys::Win32::System::Ioctl::{
-    DEVICE_SEEK_PENALTY_DESCRIPTOR, IOCTL_STORAGE_QUERY_PROPERTY, PropertyStandardQuery,
-    STORAGE_PROPERTY_QUERY, StorageDeviceSeekPenaltyProperty,
+    DEVICE_SEEK_PENALTY_DESCRIPTOR, DEVICE_TRIM_DESCRIPTOR, IOCTL_STORAGE_QUERY_PROPERTY,
+    PropertyStandardQuery, STORAGE_DEVICE_DESCRIPTOR, STORAGE_PROPERTY_ID, STORAGE_PROPERTY_QUERY,
+    StorageDeviceProperty, StorageDeviceSeekPenaltyProperty, StorageDeviceTrimProperty,
+    VOLUME_DISK_EXTENTS,
 };
 use windows_sys::Win32::System::Threading::{
     GetCurrentProcess, OpenProcessToken, TerminateProcess, WaitForSingleObject,
@@ -85,59 +88,174 @@ impl Drive {
 /// drive, a folder that is not on a drive letter). Needs no administrator: the
 /// volume is opened with no access at all, only to ask.
 pub fn seek_penalty(root: &Path) -> Option<bool> {
-    let text = root.to_string_lossy();
-    let mut chars = text.chars();
+    let letter = drive_letter(&root.to_string_lossy())?;
+    let volume = Device::open(&format!("\\\\.\\{letter}:"))?;
+    let answer: DEVICE_SEEK_PENALTY_DESCRIPTOR = volume.property(StorageDeviceSeekPenaltyProperty)?;
+    Some(answer.IncursSeekPenalty)
+}
+
+/// The drive letter a path starts with.
+fn drive_letter(path: &str) -> Option<char> {
+    let mut chars = path.chars();
     let (letter, ':') = (chars.next()?, chars.next()?) else {
         return None;
     };
-    if !letter.is_ascii_alphabetic() {
-        return None;
+    letter.is_ascii_alphabetic().then_some(letter)
+}
+
+/// A volume or disk opened with no access at all: it needs no administrator
+/// and can only answer questions.
+struct Device(HANDLE);
+
+impl Device {
+    fn open(path: &str) -> Option<Self> {
+        let path = wide_str(path);
+        // SAFETY: `path` is NUL-terminated and outlives the call; the null
+        // security attributes and template are allowed.
+        let handle = unsafe {
+            CreateFileW(
+                path.as_ptr(),
+                0,
+                FILE_SHARE_READ | FILE_SHARE_WRITE,
+                std::ptr::null(),
+                OPEN_EXISTING,
+                0,
+                std::ptr::null_mut(),
+            )
+        };
+        (handle != INVALID_HANDLE_VALUE).then_some(Self(handle))
     }
-    let device = wide_str(&format!("\\\\.\\{letter}:"));
-    // SAFETY: `device` is NUL-terminated and outlives the call; the null
-    // security attributes and template are allowed.
-    let handle = unsafe {
-        CreateFileW(
-            device.as_ptr(),
-            0,
-            FILE_SHARE_READ | FILE_SHARE_WRITE,
-            std::ptr::null(),
-            OPEN_EXISTING,
-            0,
-            std::ptr::null_mut(),
-        )
-    };
-    if handle == INVALID_HANDLE_VALUE {
-        return None;
+
+    /// The answer to `code`, if the device gives a whole `T`.
+    fn ask<T: Default>(&self, code: u32, input: *const c_void, input_size: u32) -> Option<T> {
+        let mut answer = T::default();
+        let mut returned = 0_u32;
+        // SAFETY: the caller's input is valid for `input_size`, `answer` is
+        // writable for its whole size, and the handle is open.
+        let ok = unsafe {
+            DeviceIoControl(
+                self.0,
+                code,
+                input,
+                input_size,
+                std::ptr::from_mut(&mut answer).cast::<c_void>(),
+                size_of::<T>() as u32,
+                &mut returned,
+                std::ptr::null_mut(),
+            )
+        };
+        (ok != 0 && returned as usize >= size_of::<T>()).then_some(answer)
     }
-    let query = STORAGE_PROPERTY_QUERY {
-        PropertyId: StorageDeviceSeekPenaltyProperty,
-        QueryType: PropertyStandardQuery,
-        AdditionalParameters: [0],
-    };
-    let mut answer = DEVICE_SEEK_PENALTY_DESCRIPTOR {
-        Version: 0,
-        Size: 0,
-        IncursSeekPenalty: false,
-    };
-    let mut returned = 0_u32;
-    // SAFETY: both buffers are valid for the sizes passed, and `handle` is open.
-    let ok = unsafe {
-        DeviceIoControl(
-            handle,
+
+    /// The storage `property`, if the device gives a whole `T`.
+    fn property<T: Default>(&self, property: STORAGE_PROPERTY_ID) -> Option<T> {
+        let query = STORAGE_PROPERTY_QUERY {
+            PropertyId: property,
+            QueryType: PropertyStandardQuery,
+            AdditionalParameters: [0],
+        };
+        self.ask(
             IOCTL_STORAGE_QUERY_PROPERTY,
             std::ptr::from_ref(&query).cast::<c_void>(),
             size_of::<STORAGE_PROPERTY_QUERY>() as u32,
-            std::ptr::from_mut(&mut answer).cast::<c_void>(),
-            size_of::<DEVICE_SEEK_PENALTY_DESCRIPTOR>() as u32,
-            &mut returned,
-            std::ptr::null_mut(),
         )
+    }
+}
+
+impl Drop for Device {
+    fn drop(&mut self) {
+        // SAFETY: the handle is ours and closed once.
+        unsafe { CloseHandle(self.0) };
+    }
+}
+
+/// What a disk says about itself, for deciding how hard a walk may press it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DiskReport {
+    /// The real path sits on its drive letter's own volume, not on a volume
+    /// mounted in a folder.
+    pub on_letter_volume: bool,
+    /// Windows calls the drive fixed, not removable or remote.
+    pub fixed: bool,
+    /// The physical disk number, when the volume lives on exactly one disk.
+    pub disk: Option<u32>,
+    pub seek_penalty: Option<bool>,
+    pub bus: Option<STORAGE_BUS_TYPE>,
+    pub removable_media: Option<bool>,
+    pub trim: Option<bool>,
+}
+
+impl DiskReport {
+    /// True only for one internal SATA or NVMe disk that has no seek penalty
+    /// and supports TRIM. A signal missing is a no. USB, RAID, Storage Spaces
+    /// and virtual disks are all out, because any of them can hide a hard
+    /// drive behind a good answer.
+    pub fn is_ssd(&self) -> bool {
+        self.on_letter_volume
+            && self.fixed
+            && self.disk.is_some()
+            && self.seek_penalty == Some(false)
+            && self.bus.is_some_and(|bus| bus == BusTypeNvme || bus == BusTypeSata)
+            && self.removable_media == Some(false)
+            && self.trim == Some(true)
+    }
+}
+
+/// Asks the physical disk behind `root` about itself. The path is resolved
+/// first, so a link, or a drive made with `subst`, is judged by the disk it
+/// really leads to. What can't be read stays unknown.
+pub fn disk_report(root: &Path) -> DiskReport {
+    let mut report = DiskReport::default();
+    let Ok(real) = std::fs::canonicalize(root) else {
+        return report;
     };
-    // SAFETY: `handle` is ours and closed once.
-    unsafe { CloseHandle(handle) };
-    let complete = returned as usize >= size_of::<DEVICE_SEEK_PENALTY_DESCRIPTOR>();
-    (ok != 0 && complete).then_some(answer.IncursSeekPenalty)
+    let real = real.to_string_lossy();
+    let real = real.strip_prefix(r"\\?\").unwrap_or(&real);
+    let Some(letter) = drive_letter(real) else {
+        return report;
+    };
+    let letter_root = format!("{letter}:\\");
+    report.on_letter_volume =
+        volume_path(real).is_some_and(|path| path.eq_ignore_ascii_case(&letter_root));
+    let path = wide_str(&letter_root);
+    // SAFETY: `path` is NUL-terminated and outlives the call.
+    report.fixed = unsafe { GetDriveTypeW(path.as_ptr()) } == DRIVE_FIXED;
+    report.disk = Device::open(&format!("\\\\.\\{letter}:"))
+        .and_then(|volume| {
+            volume.ask::<VOLUME_DISK_EXTENTS>(
+                IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS,
+                std::ptr::null(),
+                0,
+            )
+        })
+        .filter(|extents| extents.NumberOfDiskExtents == 1)
+        .map(|extents| extents.Extents[0].DiskNumber);
+    let Some(disk) = report
+        .disk
+        .and_then(|number| Device::open(&format!("\\\\.\\PhysicalDrive{number}")))
+    else {
+        return report;
+    };
+    let penalty: Option<DEVICE_SEEK_PENALTY_DESCRIPTOR> =
+        disk.property(StorageDeviceSeekPenaltyProperty);
+    report.seek_penalty = penalty.map(|answer| answer.IncursSeekPenalty);
+    let device: Option<STORAGE_DEVICE_DESCRIPTOR> = disk.property(StorageDeviceProperty);
+    report.bus = device.map(|answer| answer.BusType);
+    report.removable_media = device.map(|answer| answer.RemovableMedia);
+    let trim: Option<DEVICE_TRIM_DESCRIPTOR> = disk.property(StorageDeviceTrimProperty);
+    report.trim = trim.map(|answer| answer.TrimEnabled);
+    report
+}
+
+/// The mount point of the volume holding `path`, such as `C:\` or
+/// `C:\Mounted\`.
+fn volume_path(path: &str) -> Option<String> {
+    let path = wide_str(path);
+    let mut volume = [0_u16; 1024];
+    // SAFETY: `path` is NUL-terminated and `volume` is writable for the length given.
+    let ok = unsafe { GetVolumePathNameW(path.as_ptr(), volume.as_mut_ptr(), volume.len() as u32) };
+    let end = volume.iter().position(|unit| *unit == 0)?;
+    (ok != 0).then(|| String::from_utf16_lossy(&volume[..end]))
 }
 
 /// Every fixed, removable and network drive that answers.
@@ -569,6 +687,63 @@ pub(crate) fn recycle(approved: &crate::guard::Approved) -> Recycled {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use windows_sys::Win32::Storage::FileSystem::{
+        BusTypeFileBackedVirtual, BusTypeRAID, BusTypeSas, BusTypeScsi, BusTypeSpaces, BusTypeUsb,
+        BusTypeVirtual,
+    };
+
+    fn good_ssd() -> DiskReport {
+        DiskReport {
+            on_letter_volume: true,
+            fixed: true,
+            disk: Some(0),
+            seek_penalty: Some(false),
+            bus: Some(BusTypeNvme),
+            removable_media: Some(false),
+            trim: Some(true),
+        }
+    }
+
+    #[test]
+    fn a_disk_passes_only_with_every_signal() {
+        assert!(good_ssd().is_ssd());
+        assert!(DiskReport { bus: Some(BusTypeSata), ..good_ssd() }.is_ssd());
+        for failing in [
+            DiskReport { on_letter_volume: false, ..good_ssd() },
+            DiskReport { fixed: false, ..good_ssd() },
+            DiskReport { disk: None, ..good_ssd() },
+            DiskReport { seek_penalty: Some(true), ..good_ssd() },
+            DiskReport { seek_penalty: None, ..good_ssd() },
+            DiskReport { bus: None, ..good_ssd() },
+            DiskReport { removable_media: Some(true), ..good_ssd() },
+            DiskReport { removable_media: None, ..good_ssd() },
+            DiskReport { trim: Some(false), ..good_ssd() },
+            DiskReport { trim: None, ..good_ssd() },
+            DiskReport::default(),
+        ] {
+            assert!(!failing.is_ssd(), "{failing:?}");
+        }
+    }
+
+    #[test]
+    fn a_bus_that_can_hide_a_hard_drive_never_passes() {
+        for bus in [
+            BusTypeUsb,
+            BusTypeRAID,
+            BusTypeSpaces,
+            BusTypeFileBackedVirtual,
+            BusTypeVirtual,
+            BusTypeSas,
+            BusTypeScsi,
+        ] {
+            assert!(!DiskReport { bus: Some(bus), ..good_ssd() }.is_ssd(), "bus {bus}");
+        }
+    }
+
+    #[test]
+    fn a_path_that_does_not_exist_reports_nothing() {
+        assert_eq!(disk_report(Path::new(r"C:\no\such\folder\here")), DiskReport::default());
+    }
 
     #[test]
     fn arguments_survive_quoting() {

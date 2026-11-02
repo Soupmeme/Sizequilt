@@ -127,7 +127,7 @@ Measured on this machine on real drives. F: is a 932 GB NTFS drive holding about
 
 The MFT read costs about the same whenever it runs, while the walker depends
 entirely on whether Windows has the folder data cached and how fast the drive
-seeks. On D:, an NVMe drive with 880,000 items, the walker took 3 s when cached,
+seeks. On D:, an NVMe drive with 880,000 items, the walker took 2 s when cached,
 against roughly 40 s for the MFT.
 
 So **Automatic**, the default, asks each disk whether it pays a seek penalty,
@@ -142,11 +142,33 @@ which needs no administrator rights:
 
 USB enclosures often don't pass the question through, so a USB drive usually
 counts as "won't say". That suits a USB hard drive; for a USB SSD, choose Folder
-walker.
+walker, which stays at 2 workers because USB can't prove what's behind it.
 
 Choose **Folder walker** or **File table** on the start screen to override it.
 File table is also the one to pick when you want folders Windows refuses to
 list counted.
+
+The walker runs **2 workers** unless a disk proves it can take more. It gets one
+worker per CPU thread, up to 16, only if every one of these holds:
+
+- The folder's real path, after links and `subst`, is on a drive letter's own
+  volume, and that volume sits on one physical disk
+- Windows calls the drive fixed, and it connects over SATA or NVMe, so not USB,
+  RAID, Storage Spaces or a virtual disk
+- The disk reports no seek penalty and supports TRIM
+
+An unanswered question counts as a no. During the scan, if 8 of 32 folder
+listings take 20 ms or longer, the scan drops to 2 workers until it ends and says
+so, whatever the disk reported. A scan never uses more than 75% of the CPU.
+
+These rules limit how hard a scan presses a disk, but they can't promise a
+failing disk is safe. Any scan has to read it, and Windows doesn't show an app
+without administrator rights how healthy a disk is. If you suspect a disk is
+failing, back it up before scanning it.
+
+After listing, the walker reads each group of hard links once so that their sizes
+are current, which shows as **Checking hard links…**. A Windows drive can hold
+tens of thousands of these groups, and this step runs on one thread.
 
 The MFT also counted more on F: (446 GB against 443 GB), most likely because it
 is not stopped by the folders Windows refuses to list.

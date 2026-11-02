@@ -77,7 +77,14 @@ fn main() {
         for d in shell::drives() {
             let plan = scan::choose(d.table_readable(), d.seek_penalty);
             println!("{}: {:?} {:?} -> {plan:?}", d.letter, d.file_system, d.seek_penalty);
+            let report = shell::disk_report(&d.root);
+            println!("   full speed: {}  {report:?}", report.is_ssd());
         }
+        return;
+    }
+    if first == "--disk" {
+        let report = shell::disk_report(&PathBuf::from(args.next().expect("--disk <path>")));
+        println!("full speed: {}  {report:?}", report.is_ssd());
         return;
     }
     let policy = first == "--policy";
@@ -123,6 +130,7 @@ fn main() {
         f.wall_ms,
         f.entries as f64 * 1000.0 / f.wall_ms
     );
+    println!("workers  {} at most", f.workers_peak);
     println!("build    {:.0} ms", f.build_ms);
     println!("total    {total:.3} s");
     println!(

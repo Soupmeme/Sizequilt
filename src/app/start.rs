@@ -219,6 +219,7 @@ pub fn scan_screen(ui: &mut egui::Ui, scan: &Scan) {
                 Phase::Elevating => "Approve the Windows prompt to read the drive directly…".to_owned(),
                 Phase::ReadingTable => "Reading the master file table…".to_owned(),
                 Phase::Walking => "Walking folders…".to_owned(),
+                Phase::CheckingLinks => "Checking hard links…".to_owned(),
                 Phase::Building => "Building the map…".to_owned(),
             };
             ui.colored_label(MUTED, status);
