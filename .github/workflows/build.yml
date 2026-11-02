@@ -42,7 +42,8 @@ jobs:
         run: |
           Get-FileHash dist\Sizequilt.exe, dist\Sizequilt-tester-kit.zip -Algorithm SHA256 |
             ForEach-Object { "$($_.Hash)  $(Split-Path $_.Path -Leaf)" } |
-            Tee-Object -FilePath dist\SHA256SUMS.txt
+            Tee-Object -Variable sums
+          $sums | Set-Content dist\SHA256SUMS.txt -Encoding ascii
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

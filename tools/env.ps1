@@ -4,6 +4,9 @@
 $env:Path = "$env:USERPROFILE\.cargo\bin;$env:Path"
 $project = Split-Path $PSScriptRoot -Parent
 $flags = @(
+    # Rust's own linker and C runtime, even where another MinGW is installed,
+    # so every machine builds the same program.
+    "-Clink-self-contained=yes",
     "--remap-path-prefix=$env:USERPROFILE\.cargo\registry\src=deps",
     "--remap-path-prefix=$env:USERPROFILE\.cargo=cargo",
     "--remap-path-prefix=$env:USERPROFILE\.rustup=rust",
