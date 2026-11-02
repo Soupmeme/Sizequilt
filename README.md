@@ -247,8 +247,9 @@ Sizequilt is a native rebuild of the core of
 engine was already Rust, so this project reuses those crates and replaces what
 surrounds them: Express, Electron and the browser UI.
 
-Install [Rust](https://rustup.rs) with the `stable-x86_64-pc-windows-gnu`
-toolchain, then:
+Install [Rust](https://rustup.rs) and make GNU its default host with
+`rustup set default-host x86_64-pc-windows-gnu`. The exact Rust version is pinned
+in `rust-toolchain.toml` and installs itself on the first build. Then run:
 
 ```bash
 .\build.ps1
@@ -258,6 +259,11 @@ toolchain, then:
 The app is built to `target\release\sizequilt.exe`. Building takes a few minutes,
 and it means you can read everything that goes into it. Each release lists the
 SHA-256 hash of its `.exe`.
+
+Builds are reproducible from 0.1.3 on: the same source makes the same `.exe`,
+byte for byte, on any machine. Every push is also built on GitHub Actions
+(`.github/workflows/build.yml`) with the same checks as a local release, so you
+can compare a release's hash with a build of your own.
 
 The MSVC toolchain is not needed. `src/bin/sq-bench.rs` times one scan with no
 UI: `target\release\sq-bench.exe F:\`.

@@ -9,6 +9,13 @@ function Stop-Release($why) {
 }
 
 Set-Location $root
+Write-Output '--- the pinned compiler'
+$pinned = (Select-String -Path "$root\rust-toolchain.toml" -Pattern '^channel = "(.+)"').Matches[0].Groups[1].Value
+$rustc = rustc -vV
+if ($rustc -notcontains 'host: x86_64-pc-windows-gnu') { Stop-Release 'the compiler is not the GNU one, so the build would differ' }
+if ($rustc -notcontains "release: $pinned") { Stop-Release "the compiler is not Rust $pinned, as rust-toolchain.toml asks" }
+rustc -V
+
 Write-Output '--- tests'
 cargo test --locked -p sizequilt --lib
 if ($LASTEXITCODE -ne 0) { Stop-Release 'the tests failed' }

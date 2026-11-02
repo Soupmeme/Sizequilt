@@ -1,0 +1,6 @@
+# The Rust every build uses, here and on GitHub. Change it on purpose: a new
+# version makes different bytes, so releases stop matching older builds.
+[toolchain]
+channel = "1.99.1"
+components = ["clippy"]
+profile = "minimal"

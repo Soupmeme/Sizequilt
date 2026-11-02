@@ -12,10 +12,6 @@ on:
 permissions:
   contents: read
 
-env:
-  # The toolchain every release is built with. Change it on purpose, never by drift.
-  RUSTUP_TOOLCHAIN: 1.99.1-x86_64-pc-windows-gnu
-
 jobs:
   build:
     runs-on: windows-2025
@@ -28,7 +24,9 @@ jobs:
       - name: Install Rust
         shell: powershell
         run: |
-          rustup toolchain install $env:RUSTUP_TOOLCHAIN --profile minimal --component clippy
+          # The version comes from rust-toolchain.toml; the GNU host from here.
+          rustup set default-host x86_64-pc-windows-gnu
+          rustup toolchain install
           if ($LASTEXITCODE -ne 0) { exit 1 }
           rustc -vV
           cargo -V
