@@ -7,6 +7,8 @@ $flags = @(
     # Rust's own linker and C runtime, even where another MinGW is installed,
     # so every machine builds the same program.
     "-Clink-self-contained=yes",
+    # No link time in the file, so the same source always makes the same bytes.
+    "-Clink-arg=-Wl,--no-insert-timestamp",
     "--remap-path-prefix=$env:USERPROFILE\.cargo\registry\src=deps",
     "--remap-path-prefix=$env:USERPROFILE\.cargo=cargo",
     "--remap-path-prefix=$env:USERPROFILE\.rustup=rust",
