@@ -1,66 +1,111 @@
 # Sizequilt
 
-A fast native disk-space treemap for Windows: one 6 MB `.exe`, with no installer,
-Node or Electron.
+**See what's filling up your drive.**
 
-![Sizequilt showing a demo folder as a treemap](docs/screenshot.png)
+Sizequilt draws your drive as a map. Every file is a tile, and the bigger the
+tile, the more space it takes, so the things worth clearing out are easy to spot.
+It's one small program for Windows, with nothing to install.
 
-It is a native rebuild of the core of
-[TreeMap](https://github.com/Prithvi-Web/TreeMap-Disk-Visualizer). TreeMap's scan
-engine was already Rust, so this project reuses those crates and replaces what
-surrounds them: Express, Electron and the browser UI.
+![Sizequilt showing a demo folder as a map of coloured tiles](docs/screenshot.png)
 
-## Getting it
+## Get started
 
-Download the latest build from
-[Releases](https://github.com/Soupmeme/Sizequilt/releases), or
-[build it from source](#building), which takes a few minutes and means you can
-read everything that goes into it. Each release lists the SHA-256 hash of its
-`.exe`.
+1. Download `Sizequilt.exe` from the
+   [latest release](https://github.com/Soupmeme/Sizequilt/releases/latest).
+2. Double-click it.
+3. Click a drive, or choose a folder.
 
-Builds aren't code-signed. Because a new unsigned program has no reputation,
-Windows SmartScreen may warn about it, and Microsoft Defender has flagged test
-builds with generic machine-learning detections (names ending in `!ml`). We
-believe those are false positives, but Microsoft hasn't confirmed that. Don't
-turn your antivirus off for it. [PRIVACY.md](tester-kit/PRIVACY.md) lists checks
-you can run yourself, including scanning with your network off.
+You'll need 64-bit Windows 10 or later. Sizequilt has only been tested on
+Windows 11.
 
-## Using it
+### If Windows warns you
 
-Run `dist\Sizequilt.exe`, then click a drive or choose a folder. You can
-also start a scan directly:
+Sizequilt is a new program and isn't code-signed, which costs money this project
+doesn't spend. Windows may warn you about it for that reason, and Microsoft
+Defender has blocked some test builds as a suspected virus. We believe those were
+false alarms, but Microsoft hasn't confirmed that.
 
-```bash
-Sizequilt.exe C:\
-Sizequilt.exe D:\Games --walker
-Sizequilt.exe H:\ --mft
-```
+**Please don't turn off your antivirus for it.** If you'd like to check it
+yourself, the `Sizequilt-tester-kit.zip` on the release page includes a privacy
+guide and check scripts. [PRIVACY.md](tester-kit/PRIVACY.md) walks you through
+them, including how to scan with your internet off. You can also
+[build it from source](#building).
 
-With no flag, the method is chosen from the disk, as described under
-[Scan speed](#scan-speed).
+## Finding your way around
 
-| Action | How |
+| To do this | Do this |
 |---|---|
-| Go straight to a folder | Double-click it, or anything inside it |
-| Zoom in one level | Scroll up |
-| Zoom out | Scroll down, `Backspace`, the up button, or the breadcrumb |
-| Back | The back button, or the mouse's back button |
-| Select | Click a tile; the folder list follows |
-| Actions | Right-click, or use the buttons under the list |
-| Search | `Ctrl+F`, then a name or `*.ext` |
-| Light up a file type | Click it under **File types** |
-| Move to Recycle Bin | Select it and press `Delete`, then confirm |
+| Open a folder | Double-click it, or anything inside it |
+| Go in one level | Scroll up |
+| Go back out | Scroll down, press `Backspace`, or click the up button |
+| Go back to where you were | The back button, or your mouse's back button |
+| Select something | Click its tile, and the folder list follows |
+| See your options | Right-click, or use the buttons under the list |
+| Search | Press `Ctrl+F`, then type a name, or `*.mp4` for a file type |
+| Highlight a file type | Click it under **File types** |
+| Move something to the Recycle Bin | Select it, press `Delete`, then confirm |
 
-### Features
+You can also browse a folder tree, see your largest files, and see how much space
+each file type takes. Sizes can be shown as space used on disk or as file size.
 
-- Treemap of a whole drive or a folder, with zoom, labels and tooltips
-- Folder tree, largest files and a file-type breakdown
-- Search across every name, with matches lit on the map
-- Sizes by space on disk or by file size, with hard links counted once
-- Open, show in Explorer, copy path, and move to Recycle Bin, under the rules in
-  [Safety](#safety)
+## Is it safe?
 
-### Safety
+**Your files.** Scanning only reads your drive and changes nothing on it. Sizequilt
+never deletes anything by itself. Nothing moves unless you confirm that one named
+item, and it goes to the Recycle Bin, so you can get it back. There's no bulk
+delete and no automatic cleanup.
+
+**Your system.** Windows folders, program folders, drivers and boot files, and
+your main user folders are all protected, and the app won't move them. If
+something could matter, such as a program or a large folder, you have to tick a
+box to confirm you mean it. These protections only apply inside Sizequilt. They
+don't stop File Explorer or other programs.
+
+**Your privacy.** Sizequilt has no network code, collects no usage data and
+doesn't update itself, so nothing is designed to leave your PC.
+[PRIVACY.md](tester-kit/PRIVACY.md) explains how to check this for yourself.
+
+**Your drives.** Sizequilt only scans at full speed on an internal SSD that passes
+all of its checks. Every other drive, including hard drives, USB drives and network
+drives, gets a gentler scan. If a drive starts answering slowly, the scan eases off
+for the rest of the run and tells you.
+
+No scan can make a failing drive safe, because it still has to read the drive. If
+you think a drive is failing, back it up before you scan it.
+
+## Why is my scan slow?
+
+- **It's the first scan since you restarted.** Windows remembers what it has
+  read, so the second scan is usually much faster.
+- **It's a hard drive or a USB drive.** These get the gentler scan on purpose.
+- **It says "Checking hard links…".** Some files, especially in Windows folders,
+  appear in several places but are stored only once. Sizequilt checks them so that
+  each is counted once and the map shows the right sizes.
+- **It says the scan eased off.** The drive was answering slowly, so Sizequilt
+  went easy on it. The results are just as complete.
+
+### Permission prompts and scan methods
+
+On a hard drive, Windows may ask you to approve Sizequilt. This lets it read the
+drive's own index of files in one go, which is much faster than opening every
+folder on a hard drive. It only reads. If you say no, the scan still runs, but it
+takes longer.
+
+**Automatic** is the right choice for almost everyone. You can pick a method
+yourself on the start screen:
+
+| Scan method | What it does | When to use it |
+|---|---|---|
+| **Automatic** | Picks a method for each drive | Almost always |
+| **Folder walker** | Opens each folder in turn, with no permission prompt | A USB SSD, or when you don't want the prompt |
+| **File table** | Reads the drive's own index in one go | A hard drive, or to count folders Windows won't normally open |
+
+## The technical details
+
+<details>
+<summary>The full safety rules</summary>
+
+### What a scan does to the disk
 
 Scanning never changes anything on disk. The administrator step only reads the
 drive; that process writes one file, in your temp folder, and exits.
@@ -70,7 +115,7 @@ is no batch delete, no automatic cleanup and no way to empty the Recycle Bin.
 Every move passes through one gatekeeper, `src/guard.rs`, and the code that
 calls Windows' delete cannot compile without its approval.
 
-**Blocked, with no override in the app:**
+### Blocked, with no override in the app
 
 - Whole drives, and the folder you scanned
 - `Windows`, `Windows.old`, `Program Files`, `Program Files (x86)`, `Boot`, `EFI`,
@@ -88,17 +133,19 @@ calls Windows' delete cannot compile without its approval.
 - Names Windows could read as something else: wildcards, trailing dots or
   spaces, device names such as `CON`, and paths too long for the shell
 
-**Caution, where you must tick an acknowledgement first:** program files and
-folders holding them, AppData contents, ProgramData contents, another user's
-files, the top of the Windows drive, key and password files, git repositories,
-synced OneDrive folders, moves over 10 GB or 10,000 files, and anything while
-running as administrator.
+### Caution, where you must tick an acknowledgement first
 
-**Right before anything moves**, the item is re-checked against the disk. The
-move is refused if it has gone, changed since the scan, or now leads somewhere
-else. It's also refused if the drive has no Recycle Bin, the bin is turned off,
-or the item is larger than the bin, because Windows would delete it for good in
-those cases.
+Program files and folders holding them, AppData contents, ProgramData contents,
+another user's files, the top of the Windows drive, key and password files, git
+repositories, synced OneDrive folders, moves over 10 GB or 10,000 files, and
+anything while running as administrator.
+
+### Right before anything moves
+
+The item is re-checked against the disk. The move is refused if it has gone,
+changed since the scan, or now leads somewhere else. It's also refused if the
+drive has no Recycle Bin, the bin is turned off, or the item is larger than the
+bin, because Windows would delete it for good in those cases.
 
 Only the selected item moves. Windows' habit of also taking a page's connected
 `_files` folder is turned off, and programs and scripts are never started from
@@ -107,49 +154,18 @@ the app.
 Every attempt is recorded in `%LOCALAPPDATA%\Sizequilt\actions.log`, and
 nothing moves if that record can't be written.
 
-These protections cover this app only. They don't stop File Explorer or other
-programs.
-
 To check the rules against a real drive, run
 `target\release\sq-bench.exe --policy C:\`. It asks the guard about every item
 and prints what would get through.
 
-## Scan speed
+</details>
 
-Measured on this machine on real drives. F: is a 932 GB NTFS drive holding about
-400,000 items:
+<details>
+<summary>How scans protect your drives</summary>
 
-| Scan of F: | Time | Items |
-|---|---|---|
-| Directory walker, cold (first scan after boot) | 170 s | 392,318 |
-| Master file table | 5.5 s | 416,480 |
-| Directory walker, warm (folder data in memory) | 1.4 s | 392,318 |
-
-The MFT read costs about the same whenever it runs, while the walker depends
-entirely on whether Windows has the folder data cached and how fast the drive
-seeks. On D:, an NVMe drive with 880,000 items, the walker took 2 s when cached,
-against roughly 40 s for the MFT.
-
-So **Automatic**, the default, asks each disk whether it pays a seek penalty,
-which needs no administrator rights:
-
-| Disk | Method used |
-|---|---|
-| SSD | Folder walker |
-| Hard drive | File table, with an administrator prompt |
-| Won't say | File table, with an administrator prompt |
-| Not NTFS, or a network drive | Folder walker |
-
-USB enclosures often don't pass the question through, so a USB drive usually
-counts as "won't say". That suits a USB hard drive; for a USB SSD, choose Folder
-walker, which stays at 2 workers because USB can't prove what's behind it.
-
-Choose **Folder walker** or **File table** on the start screen to override it.
-File table is also the one to pick when you want folders Windows refuses to
-list counted.
-
-The walker runs **2 workers** unless a disk proves it can take more. It gets one
-worker per CPU thread, up to 16, only if every one of these holds:
+The folder walker runs **2 workers**, meaning two folders are read at a time,
+unless a disk proves it can take more. It gets one worker per CPU thread, up to
+16, only if every one of these holds:
 
 - The folder's real path, after links and `subst`, is on a drive letter's own
   volume, and that volume sits on one physical disk
@@ -163,21 +179,73 @@ so, whatever the disk reported. A scan never uses more than 75% of the CPU.
 
 These rules limit how hard a scan presses a disk, but they can't promise a
 failing disk is safe. Any scan has to read it, and Windows doesn't show an app
-without administrator rights how healthy a disk is. If you suspect a disk is
-failing, back it up before scanning it.
+without administrator rights how healthy a disk is.
 
 After listing, the walker reads each group of hard links once so that their sizes
-are current, which shows as **Checking hard links…**. A Windows drive can hold
-tens of thousands of these groups, and this step runs on one thread.
+are current. A Windows drive can hold tens of thousands of these groups, and this
+step runs on one thread.
 
-The MFT also counted more on F: (446 GB against 443 GB), most likely because it
-is not stopped by the folders Windows refuses to list.
+</details>
+
+<details>
+<summary>How Automatic chooses, and speed measurements</summary>
+
+**Automatic** asks each disk whether it pays a seek penalty, which needs no
+administrator rights:
+
+| Disk | Method used |
+|---|---|
+| SSD | Folder walker |
+| Hard drive | File table, with an administrator prompt |
+| Won't say | File table, with an administrator prompt |
+| Not NTFS, or a network drive | Folder walker |
+
+USB enclosures often don't pass the question through, so a USB drive usually
+counts as "won't say". That suits a USB hard drive. A USB SSD is better on Folder
+walker, which stays at 2 workers because USB can't prove what's behind it.
+
+These were measured on real drives on the development machine. F: is a 932 GB
+NTFS drive on USB, holding about 400,000 items:
+
+| Scan of F: | Time | Items |
+|---|---|---|
+| Folder walker, cold (first scan after boot) | 162 s | 392,318 |
+| File table | 5.5 s | 416,480 |
+| Folder walker, warm (folder data in memory) | 2.0 s | 392,318 |
+
+The file table costs about the same whenever it runs, while the walker depends
+entirely on whether Windows has the folder data cached and how fast the drive
+seeks. On D:, an NVMe drive with 880,000 items, the walker took 2 s when cached,
+against roughly 40 s for the file table.
+
+The file table also counted more on F: (446 GB against 443 GB), most likely
+because it is not stopped by the folders Windows refuses to list.
 
 Once a scan is loaded, a 2560×1440 map takes about 15 ms to lay out and paint,
 and searching 575,000 names takes about 5 ms. Memory is about 75–90 bytes per
 item, on top of about 100 MB for the app.
 
+</details>
+
+<details>
+<summary>Starting a scan from the command line</summary>
+
+```bash
+Sizequilt.exe C:\
+Sizequilt.exe D:\Games --walker
+Sizequilt.exe H:\ --mft
+```
+
+With no flag, the method is chosen for the disk, as **Automatic** does.
+
+</details>
+
 ## Building
+
+Sizequilt is a native rebuild of the core of
+[TreeMap](https://github.com/Prithvi-Web/TreeMap-Disk-Visualizer). TreeMap's scan
+engine was already Rust, so this project reuses those crates and replaces what
+surrounds them: Express, Electron and the browser UI.
 
 Install [Rust](https://rustup.rs) with the `stable-x86_64-pc-windows-gnu`
 toolchain, then:
@@ -186,6 +254,10 @@ toolchain, then:
 .\build.ps1
 .\build.ps1 test -p sizequilt --lib
 ```
+
+The app is built to `target\release\sizequilt.exe`. Building takes a few minutes,
+and it means you can read everything that goes into it. Each release lists the
+SHA-256 hash of its `.exe`.
 
 The MSVC toolchain is not needed. `src/bin/sq-bench.rs` times one scan with no
 UI: `target\release\sq-bench.exe F:\`.
@@ -202,7 +274,7 @@ crate is in the build, if the built file contains network libraries, or if it
 holds your username or project path. It also confirms that those checks can
 fail, by giving them a known bad input first.
 
-## Layout
+### Layout
 
 | Path | What it holds |
 |---|---|
