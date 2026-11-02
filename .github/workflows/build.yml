@@ -1,0 +1,55 @@
+# Builds Sizequilt on GitHub's machines with the same checks as a local
+# release, so a published file can be traced to this repository's source.
+name: Build
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # The toolchain every release is built with. Change it on purpose, never by drift.
+  RUSTUP_TOOLCHAIN: 1.99.1-x86_64-pc-windows-gnu
+
+jobs:
+  build:
+    runs-on: windows-2025
+    steps:
+      # Actions are pinned to a commit, because a tag can be moved.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Rust
+        shell: powershell
+        run: |
+          rustup toolchain install $env:RUSTUP_TOOLCHAIN --profile minimal --component clippy
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          rustc -vV
+          cargo -V
+
+      - name: Test, check and build
+        shell: powershell
+        run: .\release.ps1
+
+      - name: Hash
+        shell: powershell
+        run: |
+          Get-FileHash dist\Sizequilt.exe, dist\Sizequilt-tester-kit.zip -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash)  $(Split-Path $_.Path -Leaf)" } |
+            Tee-Object -FilePath dist\SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Sizequilt-${{ github.sha }}
+          path: |
+            dist/Sizequilt.exe
+            dist/Sizequilt-tester-kit.zip
+            dist/Sizequilt-app-only.zip
+            dist/SHA256SUMS.txt
+          if-no-files-found: error

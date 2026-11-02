@@ -10,11 +10,11 @@ function Stop-Release($why) {
 
 Set-Location $root
 Write-Output '--- tests'
-cargo test -p sizequilt --lib
+cargo test --locked -p sizequilt --lib
 if ($LASTEXITCODE -ne 0) { Stop-Release 'the tests failed' }
 
 Write-Output '--- no socket types in our code or the vendored engine'
-cargo clippy --workspace -- -D clippy::disallowed_types
+cargo clippy --locked --workspace -- -D clippy::disallowed_types
 if ($LASTEXITCODE -ne 0) { Stop-Release 'code uses a network type' }
 
 Write-Output '--- no networking crates'
@@ -24,7 +24,7 @@ if ($LASTEXITCODE -eq 0) { Stop-Release 'the crate check passed a list holding r
 if ($LASTEXITCODE -ne 0) { Stop-Release 'a networking crate is in the build' }
 
 Write-Output '--- build'
-cargo build --release -p sizequilt
+cargo build --locked --release -p sizequilt
 if ($LASTEXITCODE -ne 0) { Stop-Release 'the build failed' }
 
 Write-Output '--- the file check can fail'
