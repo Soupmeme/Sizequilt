@@ -41,7 +41,8 @@ With no flag, the method is chosen from the disk, as described under
 
 | Action | How |
 |---|---|
-| Zoom in one folder | Double-click, or scroll up |
+| Go straight to a folder | Double-click it, or anything inside it |
+| Zoom in one level | Scroll up |
 | Zoom out | Scroll down, `Backspace`, the up button, or the breadcrumb |
 | Back | The back button, or the mouse's back button |
 | Select | Click a tile; the folder list follows |

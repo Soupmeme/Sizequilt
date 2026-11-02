@@ -290,6 +290,29 @@ impl Tree {
         &self.child[start..start + self.child_len[node as usize] as usize]
     }
 
+    /// `node` if it is a folder, or else the folder it sits in.
+    pub fn folder_of(&self, node: u32) -> u32 {
+        if self.is_dir(node) {
+            node
+        } else {
+            self.parent(node).unwrap_or(0)
+        }
+    }
+
+    /// One level down from `focus` toward `node`: the folder directly below
+    /// `focus` that holds it. `None` when `node` is `focus`, lies outside it,
+    /// or is a file directly in it.
+    pub fn step_toward(&self, focus: u32, node: u32) -> Option<u32> {
+        let mut at = node;
+        loop {
+            let parent = self.parent(at)?;
+            if parent == focus {
+                return self.is_dir(at).then_some(at);
+            }
+            at = parent;
+        }
+    }
+
     /// The chain from the root down to `node`, both included.
     pub fn chain(&self, node: u32) -> Vec<u32> {
         let mut chain = vec![node];
@@ -589,6 +612,25 @@ pub(crate) mod test_tree {
         t.alloc_swap_for_test();
         t.set_metric(Metric::Allocated);
         assert_eq!(t.children(0), &[2, 1]);
+    }
+
+    #[test]
+    fn a_step_goes_one_level_toward_the_target() {
+        let t = sample();
+        assert_eq!(t.step_toward(0, 7), Some(2));
+        assert_eq!(t.step_toward(2, 7), Some(6));
+        assert_eq!(t.step_toward(6, 7), None);
+        assert_eq!(t.step_toward(0, 3), None);
+        assert_eq!(t.step_toward(2, 2), None);
+        assert_eq!(t.step_toward(1, 7), None);
+    }
+
+    #[test]
+    fn a_nested_item_names_its_own_folder_not_a_level_on_the_way() {
+        let t = sample();
+        assert_eq!(t.folder_of(6), 6);
+        assert_eq!(t.folder_of(7), 6);
+        assert_eq!(t.folder_of(0), 0);
     }
 
     #[test]

@@ -971,17 +971,19 @@ impl View {
             if response.clicked() {
                 self.actions.push(Action::Show(node));
             }
+            // A double-click goes straight to the folder under the pointer.
             if response.double_clicked() {
-                if let Some(target) = zoom_target(tree, self.focus, node) {
+                let target = tree.folder_of(node);
+                if target != self.focus {
                     self.actions.push(Action::Zoom(target));
                 }
             }
-            // One notch in zooms a level; one notch out goes up.
+            // The wheel walks there: one notch in zooms a level, one out goes up.
             let wheel = ctx.input(|i| i.smooth_scroll_delta.y);
             if wheel.abs() > 0.5 && self.last_wheel.elapsed() >= WHEEL_COOLDOWN {
                 self.last_wheel = Instant::now();
                 if wheel > 0.0 {
-                    if let Some(target) = zoom_target(tree, self.focus, node) {
+                    if let Some(target) = tree.step_toward(self.focus, node) {
                         self.actions.push(Action::Zoom(target));
                     }
                 } else {
@@ -1162,18 +1164,4 @@ fn protection(verdict: &Verdict) -> Option<&str> {
 /// The height of a list row with its spacing.
 fn row_step(ui: &egui::Ui) -> f32 {
     ROW_HEIGHT + ui.spacing().item_spacing.y
-}
-
-/// What one zoom from `focus` toward `node` lands on: the folder directly
-/// below `focus` that holds it. `None` when `node` is a file directly in
-/// `focus`, or `focus` itself.
-fn zoom_target(tree: &Tree, focus: u32, node: u32) -> Option<u32> {
-    let mut at = node;
-    loop {
-        let parent = tree.parent(at)?;
-        if parent == focus {
-            return tree.is_dir(at).then_some(at);
-        }
-        at = parent;
-    }
 }

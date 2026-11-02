@@ -1737,7 +1737,7 @@ checksum = "e3a9fe34e3e7a50316060351f37187a3f546bce95496156754b601a5fa71b76e"
 
 [[package]]
 name = "sizequilt"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "eframe",
  "embed-manifest",
@@ -1860,7 +1860,7 @@ dependencies = [
 
 [[package]]
 name = "tm-governor"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "libc",
  "objc2 0.6.5",
@@ -1872,7 +1872,7 @@ dependencies = [
 
 [[package]]
 name = "tm-mft"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "tm-governor",
  "tm-walk",
@@ -1881,7 +1881,7 @@ dependencies = [
 
 [[package]]
 name = "tm-mft-helper"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "tm-mft",
  "tm-walk",
@@ -1889,7 +1889,7 @@ dependencies = [
 
 [[package]]
 name = "tm-walk"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "libc",
  "tm-governor",
