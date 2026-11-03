@@ -67,7 +67,10 @@ Copy-Item (Join-Path $root 'vendor\LICENSE-TreeMap.txt') $kit
 # at the commit, because Compress-Archive keeps each file's local modified time.
 Add-Type -AssemblyName System.IO.Compression
 $committed = [DateTimeOffset]::FromUnixTimeSeconds([long](git log -1 --format=%ct)).UtcDateTime
-$stamp = [DateTimeOffset]::new($committed.Ticks, [TimeSpan]::Zero)
+# A zip stores a clock time with no zone, and .NET writes it in this machine's
+# zone, so the commit's UTC clock time is given this machine's offset.
+$clock = [DateTime]::SpecifyKind($committed, [DateTimeKind]::Unspecified)
+$stamp = [DateTimeOffset]::new($clock, [TimeZoneInfo]::Local.GetUtcOffset($clock))
 function New-Zip($zip, $files) {
     if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }
     $stream = [IO.File]::Open($zip, [IO.FileMode]::CreateNew)
