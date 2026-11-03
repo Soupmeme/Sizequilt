@@ -264,8 +264,8 @@ The app is built to `target\release\sizequilt.exe`. Building takes a few minutes
 and it means you can read everything that goes into it. Each release lists the
 SHA-256 hash of its `.exe`.
 
-Builds are reproducible from 0.1.3 on: the same source makes the same `.exe`,
-byte for byte, on any machine. Every push is also built on GitHub Actions
+Builds are reproducible from 0.1.3 on: the same source makes the same `.exe`
+and zips, byte for byte, on any machine. Every push is also built on GitHub Actions
 (`.github/workflows/build.yml`) with the same checks as a local release, so you
 can compare a release's hash with a build of your own.
 

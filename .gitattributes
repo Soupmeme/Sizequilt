@@ -1,0 +1,4 @@
+# The tester kit's files go into the release zips as they are checked out, so
+# they keep the same line endings on every machine, here and on GitHub.
+tester-kit/** text eol=lf
+vendor/LICENSE-TreeMap.txt text eol=lf

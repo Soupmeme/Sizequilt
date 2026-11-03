@@ -63,13 +63,30 @@ foreach ($file in 'check-app.ps1', 'block-network.ps1', 'PRIVACY.md') {
     Copy-Item (Join-Path $root "tester-kit\$file") $kit
 }
 Copy-Item (Join-Path $root 'vendor\LICENSE-TreeMap.txt') $kit
+# Zips that come out the same on any machine: a fixed order, and every file dated
+# at the commit, because Compress-Archive keeps each file's local modified time.
+Add-Type -AssemblyName System.IO.Compression
+$committed = [DateTimeOffset]::FromUnixTimeSeconds([long](git log -1 --format=%ct)).UtcDateTime
+$stamp = [DateTimeOffset]::new($committed.Ticks, [TimeSpan]::Zero)
+function New-Zip($zip, $files) {
+    if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }
+    $stream = [IO.File]::Open($zip, [IO.FileMode]::CreateNew)
+    $archive = [IO.Compression.ZipArchive]::new($stream, [IO.Compression.ZipArchiveMode]::Create)
+    foreach ($file in $files) {
+        $entry = $archive.CreateEntry((Split-Path $file -Leaf), [IO.Compression.CompressionLevel]::Optimal)
+        $entry.LastWriteTime = $stamp
+        $out = $entry.Open()
+        $bytes = [IO.File]::ReadAllBytes($file)
+        $out.Write($bytes, 0, $bytes.Length)
+        $out.Dispose()
+    }
+    $archive.Dispose()
+    $stream.Dispose()
+}
 $zip = "$kit.zip"
-if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }
-Compress-Archive -Path "$kit\*" -DestinationPath $zip
+New-Zip $zip (Get-ChildItem -LiteralPath $kit -File | Sort-Object Name | ForEach-Object FullName)
 # The program alone: what a false-positive report to an antivirus vendor needs.
-$single = Join-Path $dist 'Sizequilt-app-only.zip'
-if (Test-Path -LiteralPath $single) { Remove-Item -LiteralPath $single -Force }
-Compress-Archive -Path (Join-Path $kit 'Sizequilt.exe') -DestinationPath $single
+New-Zip (Join-Path $dist 'Sizequilt-app-only.zip') @(Join-Path $kit 'Sizequilt.exe')
 
 $hash = (Get-FileHash (Join-Path $kit 'Sizequilt.exe') -Algorithm SHA256).Hash
 Set-Content -Path (Join-Path $dist 'SHA256-send-separately.txt') -Value $hash -Encoding ascii
