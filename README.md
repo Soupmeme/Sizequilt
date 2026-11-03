@@ -173,9 +173,13 @@ unless a disk proves it can take more. It gets one worker per CPU thread, up to
   RAID, Storage Spaces or a virtual disk
 - The disk reports no seek penalty and supports TRIM
 
-An unanswered question counts as a no. During the scan, if 8 of 32 folder
-listings take 20 ms or longer, the scan drops to 2 workers until it ends and says
-so, whatever the disk reported. A scan never uses more than 75% of the CPU.
+An unanswered question counts as a no. During the scan, folder listings are
+counted in groups of 32, and a group is slow when 8 of its listings take 20 ms
+or longer. If 3 of the last 4 groups are slow, the scan drops to 2 workers until
+it ends and says so, whatever the disk reported. A single moment when something
+else holds the disk can slow every listing in progress at once, but that fills
+two groups at most, so only a disk that stays slow sets it off. A scan never uses
+more than 75% of the CPU.
 
 These rules limit how hard a scan presses a disk, but they can't promise a
 failing disk is safe. Any scan has to read it, and Windows doesn't show an app

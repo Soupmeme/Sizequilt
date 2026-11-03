@@ -2,7 +2,7 @@
 //! directory walker otherwise, and always something the app can show.
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -74,29 +74,54 @@ fn walker_workers(verified_ssd: bool, threads: usize) -> usize {
 const SLOW_LISTING: Duration = Duration::from_millis(20);
 /// The listings counted together.
 const BRAKE_WINDOW: u32 = 32;
-/// How many slow listings in a window apply the brake. One huge folder is slow
-/// on any disk, but this many are a disk seeking or struggling.
+/// How many slow listings make a window slow. One huge folder is slow on any
+/// disk, but this many are a disk seeking or struggling.
 const BRAKE_SLOW_LISTINGS: u32 = 8;
+/// The latest windows the brake looks back over.
+const BRAKE_RECENT_WINDOWS: u32 = 4;
+/// How many of those must be slow to apply the brake. A moment when something
+/// else holds the disk or the machine stalls every listing in flight at once:
+/// up to [`MAX_SSD_WORKERS`] slow listings, which fill two windows at most. A
+/// disk that can't keep up is slow window after window.
+const BRAKE_SLOW_WINDOWS: u32 = 3;
 
 /// Judges a disk by how it behaves, because what it reports can be wrong and
 /// says nothing of its health. Once on, the brake stays on for the whole scan.
 #[derive(Default)]
 struct Brake {
-    listings: AtomicU32,
-    slow: AtomicU32,
+    windows: Mutex<Windows>,
     on: AtomicBool,
+}
+
+/// The window being counted, and which recent ones were slow.
+#[derive(Default)]
+struct Windows {
+    listings: u32,
+    slow: u32,
+    /// One bit per finished window, newest lowest; set when it was slow.
+    recent: u32,
 }
 
 impl Brake {
     fn note(&self, took: Duration) {
-        if took >= SLOW_LISTING
-            && self.slow.fetch_add(1, Ordering::AcqRel) + 1 >= BRAKE_SLOW_LISTINGS
-        {
-            self.on.store(true, Ordering::Release);
+        if self.is_on() {
+            return;
         }
-        if self.listings.fetch_add(1, Ordering::AcqRel) + 1 >= BRAKE_WINDOW {
-            self.listings.store(0, Ordering::Release);
-            self.slow.store(0, Ordering::Release);
+        // A listing that panicked can't leave the count wrong, so keep counting.
+        let mut windows = self.windows.lock().unwrap_or_else(|e| e.into_inner());
+        windows.listings += 1;
+        if took >= SLOW_LISTING {
+            windows.slow += 1;
+        }
+        if windows.listings < BRAKE_WINDOW {
+            return;
+        }
+        let slow = u32::from(windows.slow >= BRAKE_SLOW_LISTINGS);
+        windows.recent = (windows.recent << 1 | slow) & ((1 << BRAKE_RECENT_WINDOWS) - 1);
+        windows.listings = 0;
+        windows.slow = 0;
+        if windows.recent.count_ones() >= BRAKE_SLOW_WINDOWS {
+            self.on.store(true, Ordering::Release);
         }
     }
 
@@ -493,6 +518,7 @@ fn read_table_elevated(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::AtomicU32;
 
     #[test]
     fn automatic_walks_an_ssd_and_reads_the_table_of_a_hard_drive() {
@@ -540,25 +566,62 @@ mod tests {
         assert!(walked.unwrap().stats.workers_peak <= CAUTIOUS_WORKERS as u32);
     }
 
+    const FAST: Duration = Duration::from_micros(100);
+
+    /// Notes one window with `slow` slow listings.
+    fn window(brake: &Brake, slow: u32) {
+        for i in 0..BRAKE_WINDOW {
+            brake.note(if i < slow { SLOW_LISTING } else { FAST });
+        }
+    }
+
     #[test]
-    fn the_brake_needs_many_slow_listings_and_then_stays_on() {
-        let slow = SLOW_LISTING;
-        let fast = Duration::from_micros(100);
+    fn the_brake_needs_slowness_that_lasts_and_then_stays_on() {
         let brake = Brake::default();
-        for _ in 0..3 {
-            for i in 0..BRAKE_WINDOW {
-                brake.note(if i < BRAKE_SLOW_LISTINGS - 1 { slow } else { fast });
-            }
+        for _ in 0..BRAKE_RECENT_WINDOWS * 4 {
+            window(&brake, BRAKE_SLOW_LISTINGS - 1);
         }
         assert!(!brake.is_on(), "a few huge folders are not a slow disk");
-        for _ in 0..BRAKE_SLOW_LISTINGS {
-            brake.note(slow);
+        for _ in 0..BRAKE_SLOW_WINDOWS - 1 {
+            window(&brake, BRAKE_SLOW_LISTINGS);
+            window(&brake, 0);
+        }
+        assert!(!brake.is_on(), "slow windows spread apart are not a slow disk");
+        for _ in 0..BRAKE_SLOW_WINDOWS {
+            window(&brake, BRAKE_SLOW_LISTINGS);
         }
         assert!(brake.is_on());
-        for _ in 0..BRAKE_WINDOW * 4 {
-            brake.note(fast);
+        for _ in 0..BRAKE_RECENT_WINDOWS * 4 {
+            window(&brake, 0);
         }
         assert!(brake.is_on(), "a disk that was slow stays under suspicion");
+    }
+
+    #[test]
+    fn one_moment_when_every_worker_waits_does_not_apply_the_brake() {
+        // Every listing in flight at once, wherever it falls across windows.
+        for offset in 0..BRAKE_WINDOW {
+            let brake = Brake::default();
+            for _ in 0..offset + BRAKE_WINDOW {
+                brake.note(FAST);
+            }
+            for _ in 0..MAX_SSD_WORKERS {
+                brake.note(SLOW_LISTING);
+            }
+            for _ in 0..BRAKE_WINDOW * BRAKE_RECENT_WINDOWS {
+                brake.note(FAST);
+            }
+            assert!(!brake.is_on(), "offset {offset}");
+        }
+    }
+
+    #[test]
+    fn a_disk_that_is_always_slow_is_braked_within_a_few_windows() {
+        let brake = Brake::default();
+        for _ in 0..BRAKE_WINDOW * BRAKE_SLOW_WINDOWS {
+            brake.note(SLOW_LISTING);
+        }
+        assert!(brake.is_on());
     }
 
     /// Allows eight workers and does nothing else.
@@ -607,7 +670,7 @@ mod tests {
 
     #[test]
     fn a_slow_disk_brings_a_running_walk_down_to_the_cautious_count() {
-        let folder = folders("brake", 120);
+        let folder = folders("brake", 400);
         let brake = Arc::new(Brake::default());
         let mut options = WalkOptions::new(&folder);
         options.max_workers = 8;
